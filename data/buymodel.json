@@ -1,0 +1,44 @@
+{
+    "5127142933": [
+        {
+            "user_id": 5127142933,
+            "username": "duyduy221212",
+            "model": "basic",
+            "days": 7,
+            "price": 80000,
+            "purchase_time": "2025-07-10 14:41:10",
+            "expiry_time": "2025-07-17 14:41:10",
+            "status": "success"
+        },
+        {
+            "user_id": 5127142933,
+            "username": "duyduy221212",
+            "model": "basic",
+            "days": 7,
+            "price": 80000,
+            "purchase_time": "2025-07-15 18:17:42",
+            "expiry_time": "2025-07-22 18:17:34",
+            "status": "success"
+        },
+        {
+            "user_id": 5127142933,
+            "username": "duyduy221212",
+            "model": "basic",
+            "days": 30,
+            "price": 150000,
+            "purchase_time": "2025-07-15 18:18:00",
+            "expiry_time": "2025-08-21 18:17:34",
+            "status": "success"
+        },
+        {
+            "user_id": 5127142933,
+            "username": "duyduy221212",
+            "model": "basic",
+            "days": 30,
+            "price": 150000,
+            "purchase_time": "2025-07-15 18:33:25",
+            "expiry_time": "2025-09-20 18:17:34",
+            "status": "success"
+        }
+    ]
+}
