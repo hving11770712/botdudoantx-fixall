@@ -288,36 +288,37 @@ async def key_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 except Exception as e2:
                     logger.error(f"Lỗi khi gửi thông báo fallback admin {admin_id}: {str(e2)}")
 
-        # Cập nhật model_users
+        # Cập nhật model_users (giữ nguyên, nhưng KHÔNG khởi động task để tránh tự chạy model)
         try:
             remove_from_old_model(chat_id)
             model_users.setdefault(model, set()).add(chat_id)
             logger.info(f"Đã thêm chat_id {chat_id} vào model_users['{model}']. Hiện tại: {model_users[model]}")
             
-            # Model "basic" được xử lý bởi modelbasic.py với API, không dùng monitor_csv_and_notify
-            if model == "basic":
-                # Import monitor_api_basic từ modelbasic.py
-                try:
-                    from game.sunwin.modelbasic import monitor_api_basic
-                    if model not in running_tasks or (model in running_tasks and running_tasks[model].done()):
-                        if model in running_tasks and not running_tasks[model].done():
-                            running_tasks[model].cancel()
-                            logger.info(f"Đã hủy task cũ cho model {model}")
-                        running_tasks[model] = asyncio.create_task(monitor_api_basic(context.bot, model))
-                        logger.info(f"Đã khởi động task API cho model {model}")
-                except ImportError:
-                    logger.error(f"Không thể import monitor_api_basic cho model {model}")
-            else:
-                # Các model khác dùng monitor_csv_and_notify (nếu có)
-                if monitor_csv_and_notify:
-                    if model not in running_tasks or (model in running_tasks and running_tasks[model].done()):
-                        if model in running_tasks and not running_tasks[model].done():
-                            running_tasks[model].cancel()
-                            logger.info(f"Đã hủy task cũ cho model {model}")
-                        running_tasks[model] = asyncio.create_task(monitor_csv_and_notify(context.bot, model))
-                        logger.info(f"Đã khởi động task mới cho model {model}")
-                else:
-                    logger.warning(f"monitor_csv_and_notify không khả dụng cho model {model}")
+            # --- Phần cũ: Khởi động task cho model (đã xóa để không tự chạy sau khi nhập key) ---
+            # if model == "basic":
+            #     try:
+            #         from game.sunwin.modelbasic import monitor_api_basic
+            #         if model not in running_tasks or (model in running_tasks and running_tasks[model].done()):
+            #             if model in running_tasks and not running_tasks[model].done():
+            #                 running_tasks[model].cancel()
+            #                 logger.info(f"Đã hủy task cũ cho model {model}")
+            #             running_tasks[model] = asyncio.create_task(monitor_api_basic(context.bot, model))
+            #             logger.info(f"Đã khởi động task API cho model {model}")
+            #     except ImportError:
+            #         logger.error(f"Không thể import monitor_api_basic cho model {model}")
+            # else:
+            #     if monitor_csv_and_notify:
+            #         if model not in running_tasks or (model in running_tasks and running_tasks[model].done()):
+            #             if model in running_tasks and not running_tasks[model].done():
+            #                 running_tasks[model].cancel()
+            #                 logger.info(f"Đã hủy task cũ cho model {model}")
+            #             running_tasks[model] = asyncio.create_task(monitor_csv_and_notify(context.bot, model))
+            #             logger.info(f"Đã khởi động task mới cho model {model}")
+            #     else:
+            #         logger.warning(f"monitor_csv_and_notify không khả dụng cho model {model}")
+            
+            # --- Kết thúc phần xóa ---
+            
         except Exception as e:
             logger.error(f"Lỗi khi cập nhật model_users hoặc running_tasks cho user_id {user_id}: {str(e)}")
             error_message = (
