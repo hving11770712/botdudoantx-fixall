@@ -2,7 +2,13 @@ import asyncio
 from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import ContextTypes
-from lenh.monitor_csv_and_notify import monitor_csv_and_notify
+
+# Import monitor_csv_and_notify với try để an toàn
+try:
+    from lenh.monitor_csv_and_notify import monitor_csv_and_notify
+except ImportError:
+    monitor_csv_and_notify = None
+
 from lenh.config import (
     ACCOUNT_FILE, MODEL_PRICES_WITH_DAYS_buymodel, running_tasks, model_users,
     remove_from_old_model, check_ban, db, logger, SUPPORT_LINK
@@ -20,6 +26,7 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     username = user.username or f"ID_{user.id}"
     user_id = user.id
+    user_id_str = str(user_id)
     
     try:
         buymodel_history = db.load_json(BUYMODEL_FILE, default={})
@@ -33,15 +40,11 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Tìm lịch sử mua theo user_id
-        user_history = None
-        for key, history_list in buymodel_history.items():
-            if isinstance(history_list, list):
-                for entry in history_list:
-                    if isinstance(entry, dict) and entry.get("user_id") == user_id:
-                        if user_history is None:
-                            user_history = []
-                        user_history.append(entry)
+        # Get lịch sử trực tiếp bằng user_id_str
+        user_history = buymodel_history.get(user_id_str, [])
+        if not isinstance(user_history, list):
+            logger.error(f"user_history không phải là list cho {user_id_str}: {user_history}")
+            user_history = []
 
         if not user_history:
             await update.message.reply_text(
@@ -113,11 +116,12 @@ async def buymodel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Lấy thông tin người dùng
         user = update.message.from_user
         user_id = user.id
+        user_id_str = str(user_id)
         username = user.username or f"ID_{user_id}"
         is_group = update.message.chat_id < 0  # Kiểm tra xem có phải nhóm không
         
         # Sử dụng user_id làm key chính để tìm tài khoản
-        account_key = str(user_id)
+        account_key = user_id_str
         
         # Load dữ liệu
         logger.debug(f"Loading ACCOUNT_FILE: {ACCOUNT_FILE}")
@@ -289,16 +293,16 @@ async def buymodel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         accounts[account_key]["model_expiry"][model] = expiry_time
         db.save_json(ACCOUNT_FILE, accounts)
 
-        # Ghi lịch sử mua vào buymodel.json
-        if username not in buymodel_history:
-            buymodel_history[username] = []
+        # Ghi lịch sử mua vào buymodel.json với key = user_id_str
+        if user_id_str not in buymodel_history:
+            buymodel_history[user_id_str] = []
         
-        # Đảm bảo buymodel_history[username] là list
-        if not isinstance(buymodel_history[username], list):
-            logger.error(f"buymodel_history['{username}'] không phải là list: {buymodel_history[username]}")
-            buymodel_history[username] = []
+        # Đảm bảo buymodel_history[user_id_str] là list
+        if not isinstance(buymodel_history[user_id_str], list):
+            logger.error(f"buymodel_history['{user_id_str}'] không phải là list: {buymodel_history[user_id_str]}")
+            buymodel_history[user_id_str] = []
             
-        buymodel_history[username].append({
+        buymodel_history[user_id_str].append({
             "user_id": user_id,
             "model": model,
             "days": days,
@@ -324,11 +328,6 @@ async def buymodel(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         model_users[model].add(user_id)
         logger.info(f"Đã thêm user_id {user_id} vào model_users['{model}'] sau khi mua. Hiện tại: {model_users[model]}")
-
-        # Khởi động task nếu cần
-        if model not in running_tasks:
-            running_tasks[model] = asyncio.create_task(monitor_csv_and_notify(context.bot, model))
-            logger.info(f"Đã khởi động task cho model {model}")
 
         # Thông báo thành công
         await update.message.reply_text(
