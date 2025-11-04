@@ -1,10 +1,10 @@
 import asyncio
-import json  # Added for manual JSON handling
+import json  # Thêm để load/save thủ công
 from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import ContextTypes
 
-# Import monitor_csv_and_notify with try for safety (though not used since auto-run is removed)
+# Import monitor_csv_and_notify với try (dù không dùng vì remove auto-run)
 try:
     from lenh.monitor_csv_and_notify import monitor_csv_and_notify
 except ImportError:
@@ -30,15 +30,13 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id_str = str(user_id)
     
     try:
-        # Manual load for buymodel.json to avoid config.py issues
+        # Load thủ công để tránh lỗi từ config.py
         try:
-            with open(BUYMODEL_FILE, 'r') as f:
+            with open(BUYMODEL_FILE, 'r', encoding='utf-8') as f:
                 buymodel_history = json.load(f)
-        except FileNotFoundError:
+        except (FileNotFoundError, json.JSONDecodeError):
             buymodel_history = {}
-        except json.JSONDecodeError:
-            logger.error(f"Invalid JSON in {BUYMODEL_FILE}")
-            buymodel_history = {}
+            logger.error(f"Lỗi load {BUYMODEL_FILE}, trả về default {}")
         
         # Kiểm tra kiểu dữ liệu
         if not isinstance(buymodel_history, dict):
@@ -49,11 +47,15 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Get lịch sử trực tiếp bằng user_id_str
-        user_history = buymodel_history.get(user_id_str, [])
-        if not isinstance(user_history, list):
-            logger.error(f"user_history không phải là list cho {user_id_str}: {user_history}")
-            user_history = []
+        # Tìm lịch sử mua theo user_id
+        user_history = None
+        for key, history_list in buymodel_history.items():
+            if isinstance(history_list, list):
+                for entry in history_list:
+                    if isinstance(entry, dict) and entry.get("user_id") == user_id:
+                        if user_history is None:
+                            user_history = []
+                        user_history.append(entry)
 
         if not user_history:
             await update.message.reply_text(
@@ -125,28 +127,25 @@ async def buymodel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Lấy thông tin người dùng
         user = update.message.from_user
         user_id = user.id
-        user_id_str = str(user_id)
         username = user.username or f"ID_{user_id}"
         is_group = update.message.chat_id < 0  # Kiểm tra xem có phải nhóm không
         
         # Sử dụng user_id làm key chính để tìm tài khoản
-        account_key = user_id_str
+        account_key = str(user_id)
         
-        # Load dữ liệu accounts (keep db.load_json as it's for ACCOUNT_FILE)
+        # Load dữ liệu
         logger.debug(f"Loading ACCOUNT_FILE: {ACCOUNT_FILE}")
         accounts = db.load_json(ACCOUNT_FILE)
         logger.debug(f"Loaded accounts type: {type(accounts)}")
         
-        # Manual load for buymodel.json to avoid config.py issues
+        # Load thủ công để tránh lỗi từ config.py
         logger.debug(f"Loading BUYMODEL_FILE: {BUYMODEL_FILE}")
         try:
-            with open(BUYMODEL_FILE, 'r') as f:
+            with open(BUYMODEL_FILE, 'r', encoding='utf-8') as f:
                 buymodel_history = json.load(f)
-        except FileNotFoundError:
+        except (FileNotFoundError, json.JSONDecodeError):
             buymodel_history = {}
-        except json.JSONDecodeError:
-            logger.error(f"Invalid JSON in {BUYMODEL_FILE}")
-            buymodel_history = {}
+            logger.error(f"Lỗi load {BUYMODEL_FILE}, trả về default {}")
         logger.debug(f"Loaded buymodel_history type: {type(buymodel_history)}")
         
         # Kiểm tra kiểu dữ liệu accounts
@@ -310,16 +309,16 @@ async def buymodel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         accounts[account_key]["model_expiry"][model] = expiry_time
         db.save_json(ACCOUNT_FILE, accounts)
 
-        # Ghi lịch sử mua vào buymodel.json với key = user_id_str
-        if user_id_str not in buymodel_history:
-            buymodel_history[user_id_str] = []
+        # Ghi lịch sử mua vào buymodel.json
+        if account_key not in buymodel_history:
+            buymodel_history[account_key] = []
         
-        # Đảm bảo buymodel_history[user_id_str] là list
-        if not isinstance(buymodel_history[user_id_str], list):
-            logger.error(f"buymodel_history['{user_id_str}'] không phải là list: {buymodel_history[user_id_str]}")
-            buymodel_history[user_id_str] = []
+        # Đảm bảo buymodel_history[account_key] là list
+        if not isinstance(buymodel_history[account_key], list):
+            logger.error(f"buymodel_history['{account_key}'] không phải là list: {buymodel_history[account_key]}")
+            buymodel_history[account_key] = []
             
-        buymodel_history[user_id_str].append({
+        buymodel_history[account_key].append({
             "user_id": user_id,
             "model": model,
             "days": days,
@@ -329,9 +328,9 @@ async def buymodel(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "status": "success"
         })
         
-        # Manual save for buymodel.json
-        with open(BUYMODEL_FILE, 'w') as f:
-            json.dump(buymodel_history, f, indent=4, ensure_ascii=False)
+        # Save thủ công
+        with open(BUYMODEL_FILE, 'w', encoding='utf-8') as f:
+            json.dump(buymodel_history, f, ensure_ascii=False, indent=4)
 
         # Cập nhật model_users
         remove_from_old_model(user_id)
